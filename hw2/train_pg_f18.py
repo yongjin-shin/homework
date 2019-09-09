@@ -12,13 +12,21 @@ import time
 import inspect
 from multiprocessing import Process
 
-#============================================================================================#
+# ============================================================================================#
 # Utilities
-#============================================================================================#
+# ============================================================================================#
 
-#========================================================================================#
+# ========================================================================================#
 #                           ----------PROBLEM 2----------
-#========================================================================================#  
+# ========================================================================================#
+
+
+# parser.add_argument('--n_layers', '-l', type=int, default=2)
+# parser.add_argument('--size', '-s', type=int, default=64)
+# self.size = computation_graph_args['size']
+# self.n_layers = computation_graph_args['n_layers']
+# sy_ob_no = tf.placeholder(shape=[None, self.ob_dim], name="ob", dtype=tf.float32)
+# build_mlp(self.sy_ob_no, 1, "nn_baseline", n_layers=self.n_layers, size=self.size))
 def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=tf.tanh, output_activation=None):
     """
         Builds a feedforward neural network
@@ -35,11 +43,26 @@ def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=
         returns:
             output placeholder of the network (the result of a forward pass) 
 
-        Hint: use tf.layers.dense    
+        Hint: use tf.layers.dense
     """
     # YOUR CODE HERE
-    raise NotImplementedError
-    return output_placeholder
+    with tf.variable_scope(name_or_scope=scope):
+        hidden = []
+
+        if 1 == n_layers:
+            return tf.layers.dense(inputs=input_placeholder, units=output_size, activation=output_activation)
+
+        elif 1 < n_layers:
+            for i in range(n_layers-1):
+                if 0 == i:
+                    hidden[i] = tf.layers.dense(inputs=input_placeholder, units=size, activation=activation)
+                else:
+                    hidden[i] = tf.layers.dense(inputs=hidden[i-1], units=size, activation=activation)
+
+            return tf.layers.dense(inputs=hidden[-1], units=output_size, activation=output_activation)
+
+        raise IOError
+
 
 def pathlength(path):
     return len(path["reward"])
@@ -95,14 +118,14 @@ class Agent(object):
                 sy_ac_na: placeholder for actions
                 sy_adv_n: placeholder for advantages
         """
-        raise NotImplementedError
+        # raise NotImplementedError
         sy_ob_no = tf.placeholder(shape=[None, self.ob_dim], name="ob", dtype=tf.float32)
         if self.discrete:
             sy_ac_na = tf.placeholder(shape=[None], name="ac", dtype=tf.int32) 
         else:
             sy_ac_na = tf.placeholder(shape=[None, self.ac_dim], name="ac", dtype=tf.float32) 
         # YOUR CODE HERE
-        sy_adv_n = None
+        sy_adv_n = tf.placeholder(shape=[None], name='adv', dtype=tf.float32)
         return sy_ob_no, sy_ac_na, sy_adv_n
 
 
