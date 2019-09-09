@@ -157,7 +157,7 @@ class Agent(object):
                 Pass in self.n_layers for the 'n_layers' argument, and
                 pass in self.size for the 'size' argument.
         """
-        raise NotImplementedError
+
         if self.discrete:
             # YOUR_CODE_HERE
             sy_logits_na = None
