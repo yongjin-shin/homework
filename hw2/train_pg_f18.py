@@ -160,13 +160,15 @@ class Agent(object):
 
         if self.discrete:
             # YOUR_CODE_HERE
-            sy_logits_na = None
+            sy_logits_na = build_mlp(sy_ob_no, self.ac_dim, "dis_policy", self.n_layers, self.size,
+                                     output_activation=tf.nn.sigmoid)
+            # sy_logits_na = tf.divide(sy_na, tf.reduce_sum(sy_na, 1, keepdims=True))
             return sy_logits_na
         else:
             # YOUR_CODE_HERE
-            sy_mean = None
-            sy_logstd = None
-            return (sy_mean, sy_logstd)
+            sy_mean = build_mlp(sy_ob_no, self.ac_dim, "cont_policy", self.n_layers, self.size)
+            sy_logstd = tf.get_variable(name='logstd', shape=self.ac_dim, dtype=tf.float32, trainable=True)
+            return sy_mean, sy_logstd
 
     #========================================================================================#
     #                           ----------PROBLEM 2----------
@@ -195,15 +197,12 @@ class Agent(object):
         
                  This reduces the problem to just sampling z. (Hint: use tf.random_normal!)
         """
-        raise NotImplementedError
         if self.discrete:
             sy_logits_na = policy_parameters
-            # YOUR_CODE_HERE
-            sy_sampled_ac = None
+            sy_sampled_ac = tf.squeeze(tf.multinomial(logits=sy_logits_na, num_samples=1), axis=1)
         else:
             sy_mean, sy_logstd = policy_parameters
-            # YOUR_CODE_HERE
-            sy_sampled_ac = None
+            sy_sampled_ac = tf.add(sy_mean, tf.multiply(sy_logstd, tf.random_normal(shape=tf.shape(sy_mean))))
         return sy_sampled_ac
 
     #========================================================================================#
@@ -232,15 +231,13 @@ class Agent(object):
                 For the discrete case, use the log probability under a categorical distribution.
                 For the continuous case, use the log probability under a multivariate gaussian.
         """
-        raise NotImplementedError
         if self.discrete:
             sy_logits_na = policy_parameters
-            # YOUR_CODE_HERE
-            sy_logprob_n = None
+            # sy_logprob_n = tf.distributions.Categorical(logits=sy_logits_na).log_prob(sy_ac_na)
+            sy_logprob_n = -1 * tf.losses.sparse_softmax_cross_entropy(labels=sy_ac_na, logits=sy_logits_na)
         else:
             sy_mean, sy_logstd = policy_parameters
-            # YOUR_CODE_HERE
-            sy_logprob_n = None
+            sy_logprob_n = tf.distributions.Normal(sy_mean, tf.exp(sy_logstd)).log_prob(sy_ac_na)
         return sy_logprob_n
 
     def build_computation_graph(self):
@@ -281,7 +278,7 @@ class Agent(object):
         #                           ----------PROBLEM 2----------
         # Loss Function and Training Operation
         #========================================================================================#
-        loss = None # YOUR CODE HERE
+        loss = tf.reduce_sum(tf.multiply(self.sy_logprob_n, self.sy_adv_n))
         self.update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(loss)
 
         #========================================================================================#
@@ -329,8 +326,7 @@ class Agent(object):
             #====================================================================================#
             #                           ----------PROBLEM 3----------
             #====================================================================================#
-            raise NotImplementedError
-            ac = None # YOUR CODE HERE
+            ac = self.sy_sampled_ac.eval()
             ac = ac[0]
             acs.append(ac)
             ob, rew, done, _ = env.step(ac)
