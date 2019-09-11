@@ -47,7 +47,7 @@ def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=
     """
     # YOUR CODE HERE
     with tf.variable_scope(name_or_scope=scope):
-        hidden = []
+        hidden = [None] * (n_layers - 1)
 
         if 1 == n_layers:
             return tf.layers.dense(inputs=input_placeholder, units=output_size, activation=output_activation)
@@ -326,7 +326,7 @@ class Agent(object):
             #====================================================================================#
             #                           ----------PROBLEM 3----------
             #====================================================================================#
-            ac = self.sy_sampled_ac.eval()
+            ac = self.sess.run(fetches=self.sy_sampled_ac, feed_dict={self.sy_ob_no: ob})
             ac = ac[0]
             acs.append(ac)
             ob, rew, done, _ = env.step(ac)
@@ -544,7 +544,8 @@ class Agent(object):
         # and after an update, and then log them below. 
 
         # YOUR_CODE_HERE
-        self.update_op.eval()
+        feeds = {'ob': ob_no, 'ac': ac_na, 'adv': adv_n}
+        _ = self.sess.run(fetches=self.update_op, feed_dict=feeds)
 
 
 def train_PG(
