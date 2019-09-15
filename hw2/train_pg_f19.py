@@ -46,7 +46,6 @@ def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=
         output_placeholder = tf.layers.dense(layer, output_size, output_activation)
     return output_placeholder
 
-
 def pathlength(path):
     return len(path["reward"])
 
@@ -108,6 +107,7 @@ class Agent(object):
             sy_ac_na = tf.placeholder(shape=[None, self.ac_dim], name="actions", dtype=tf.float32)
         sy_adv_n = tf.placeholder(shape=[None], name="advantage", dtype=tf.float32)
         return sy_ob_no, sy_ac_na, sy_adv_n
+
 
     #========================================================================================#
     #                           ----------PROBLEM 2----------
@@ -409,7 +409,7 @@ class Agent(object):
 
         else:  # discounted reward
             for path_i in re_n:
-                reversed_path = np.flip(path_i)
+                reversed_path = np.flip(path_i, axis=0)
                 curr_reward = 0
                 for r in reversed_path:
                     curr_reward = curr_reward * self.gamma + r
@@ -618,8 +618,7 @@ def train_PG(
 
     # tensorflow: config, session, variable initialization
     agent.init_tf_sess()
-    merged = tf.summary.merge_all()
-    writer = tf.summary.FileWriter('summary', agent.sess.graph)
+    # writer = tf.summary.FileWriter('tensorboard_summary', agent.sess.graph)
 
     #========================================================================================#
     # Training Loop

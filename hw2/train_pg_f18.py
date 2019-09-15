@@ -46,14 +46,14 @@ def build_mlp(input_placeholder, output_size, scope, n_layers, size, activation=
         Hint: use tf.layers.dense
     """
     with tf.variable_scope(name_or_scope=scope):
-        hidden = [None] * (n_layers - 1)
+        hidden = [None] * n_layers
 
-        if 1 == n_layers:
+        if 0 == n_layers:
             return tf.layers.dense(inputs=input_placeholder, units=output_size,
                                    activation=output_activation)
 
-        elif 1 < n_layers:
-            for i in range(n_layers-1):
+        elif 0 < n_layers:
+            for i in range(n_layers):
                 if 0 == i:
                     hidden[i] = tf.layers.dense(inputs=input_placeholder, units=size,
                                                 activation=activation)
@@ -122,9 +122,9 @@ class Agent(object):
         """
         sy_ob_no = tf.placeholder(shape=[None, self.ob_dim], name="ob", dtype=tf.float32)
         if self.discrete:
-            sy_ac_na = tf.placeholder(shape=[None], name="ac", dtype=tf.int32) 
+            sy_ac_na = tf.placeholder(shape=[None], name="dist_ac", dtype=tf.int32)
         else:
-            sy_ac_na = tf.placeholder(shape=[None, self.ac_dim], name="ac", dtype=tf.float32) 
+            sy_ac_na = tf.placeholder(shape=[None, self.ac_dim], name="cont_ac", dtype=tf.float32)
         sy_adv_n = tf.placeholder(shape=[None], name='adv', dtype=tf.float32)
         return sy_ob_no, sy_ac_na, sy_adv_n
 
@@ -167,9 +167,10 @@ class Agent(object):
             sy_mean = build_mlp(
                 sy_ob_no, self.ac_dim, "cont_policy", self.n_layers, self.size,
                                 activation=tf.nn.relu, output_activation=None)
-            # sy_logstd = tf.get_variable(name='std', shape=[self.ac_dim], dtype=tf.float32)
-            sy_logstd = tf.Variable(tf.zeros(self.ac_dim), name='sy_logstd')
-            return sy_mean, sy_logstd
+            sy_logstd = tf.get_variable(name='std', shape=[self.ac_dim], dtype=tf.float32,
+                                        initializer=tf.glorot_normal_initializer(), trainable=True)
+            # sy_logstd = tf.Variable(initial_value=tf.zeros(self.ac_dim), name='sy_logstd', trainable=True)
+            return (sy_mean, sy_logstd)
 
     #========================================================================================#
     #                           ----------PROBLEM 2----------
@@ -198,13 +199,14 @@ class Agent(object):
         
                  This reduces the problem to just sampling z. (Hint: use tf.random_normal!)
         """
-        if self.discrete:
-            sy_logits_na = policy_parameters
-            sy_sampled_ac = tf.squeeze(tf.multinomial(logits=sy_logits_na, num_samples=1), axis=1)
-        else:
-            sy_mean, sy_logstd = policy_parameters
-            sy_sampled_ac = tf.add(sy_mean, tf.multiply(tf.exp(sy_logstd), tf.random_normal(shape=tf.shape(sy_mean))))
-        return sy_sampled_ac
+        with tf.variable_scope("sampled_actiona"):
+            if self.discrete:
+                sy_logits_na = policy_parameters
+                sy_sampled_ac = tf.squeeze(tf.multinomial(logits=sy_logits_na, num_samples=1), axis=1)
+            else:
+                sy_mean, sy_logstd = policy_parameters
+                sy_sampled_ac = tf.add(sy_mean, tf.multiply(tf.exp(sy_logstd), tf.random_normal(shape=tf.shape(sy_mean))))
+            return sy_sampled_ac
 
     #========================================================================================#
     #                           ----------PROBLEM 2----------
@@ -232,20 +234,23 @@ class Agent(object):
                 For the discrete case, use the log probability under a categorical distribution.
                 For the continuous case, use the log probability under a multivariate gaussian.
         """
-        if self.discrete:
-            sy_logits_na = policy_parameters
-            # self.sy_logprob_n = tf.distributions.Categorical(logits=sy_logits_na).log_prob(sy_ac_na)
-            # self.sy_logprob_n = -1 * tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na,
-            #                                                                         logits=sy_logits_na)
-            sy_logprob_n = -1 * tf.losses.sparse_softmax_cross_entropy(labels=sy_ac_na, logits=sy_logits_na,
-                                                                       reduction=tf.losses.Reduction.NONE)
-        else:
-            sy_mean, sy_logstd = policy_parameters
-            sy_std = tf.exp(sy_logstd)
-            # self.sy_logprob_n = tf.distributions.Normal(loc=sy_mean, scale=tf.exp(sy_logstd)).log_prob(sy_ac_na)
-            sy_logprob_n = tf.reduce_sum(-0.5 * (tf.square((sy_ac_na - sy_mean) / sy_std))
-                                         - 1/(np.pi * tf.square(sy_std)), axis=1)
-        return sy_logprob_n
+        with tf.variable_scope("log_prob_sampled_action"):
+            if self.discrete:
+                sy_logits_na = policy_parameters
+                # self.sy_logprob_n = tf.distributions.Categorical(logits=sy_logits_na).log_prob(sy_ac_na)
+                # self.sy_logprob_n = -1 * tf.nn.sparse_softmax_cross_entropy_with_logits(labels=sy_ac_na,
+                #                                                                         logits=sy_logits_na)
+                sy_logprob_n = -1 * tf.losses.sparse_softmax_cross_entropy(
+                    labels=sy_ac_na,
+                    logits=sy_logits_na,
+                    reduction=tf.losses.Reduction.NONE)
+            else:
+                sy_mean, sy_logstd = policy_parameters
+                sy_std = tf.exp(sy_logstd)
+                # self.sy_logprob_n = tf.distributions.Normal(loc=sy_mean, scale=tf.exp(sy_logstd)).log_prob(sy_ac_na)
+                sy_logprob_n = tf.reduce_sum(-0.5 * (tf.square((sy_ac_na - sy_mean) / sy_std))
+                                             - 1/(np.pi * tf.square(sy_std)), axis=1)
+            return sy_logprob_n
 
     def build_computation_graph(self):
         """
@@ -285,7 +290,8 @@ class Agent(object):
         #                           ----------PROBLEM 2----------
         # Loss Function and Training Operation
         #========================================================================================#
-        self.loss = tf.reduce_mean(tf.multiply(self.sy_logprob_n, self.sy_adv_n))
+        with tf.variable_scope("loss"):
+            self.loss = tf.reduce_mean(tf.multiply(self.sy_logprob_n, self.sy_adv_n))
         self.update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(-1 * self.loss)
 
         #========================================================================================#
@@ -295,13 +301,14 @@ class Agent(object):
         # Define placeholders for targets, a loss function and an update op for fitting a 
         # neural network baseline. These will be used to fit the neural network baseline. 
         #========================================================================================#
-        if self.nn_baseline:
-            self.baseline_prediction = tf.squeeze(build_mlp(self.sy_ob_no, 1, "nn_baseline",
-                                                            n_layers=self.n_layers, size=self.size))
+        with tf.variable_scope("value_function"):
+            if self.nn_baseline:
+                self.baseline_prediction = tf.squeeze(build_mlp(self.sy_ob_no, 1, "nn_baseline",
+                                                                n_layers=self.n_layers, size=self.size))
 
-            self.sy_target_n = tf.placeholder(shape=[None], name='target', dtype=tf.float32)
-            self.baseline_loss = 0.5 * tf.reduce_sum((self.baseline_prediction - self.sy_target_n)**2)
-            self.baseline_update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.baseline_loss)
+                self.sy_target_n = tf.placeholder(shape=[None], name='target', dtype=tf.float32)
+                self.baseline_loss = 0.5 * tf.reduce_sum((self.baseline_prediction - self.sy_target_n)**2)
+                self.baseline_update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.baseline_loss)
 
     def sample_trajectories(self, itr, env):
         # Collect paths until we have enough timesteps
@@ -414,14 +421,15 @@ class Agent(object):
         """
 
         q_n = []
+        t_n = []
         if self.reward_to_go:
             for re in re_n:
-                this_path_len = len(re)
-                gammas = np.power(self.gamma, np.arange(this_path_len))
-                all_qs = gammas * re
-                re_all_qs = all_qs[::-1]
-                qs = np.cumsum(re_all_qs)
-                q_n.extend(qs[::-1])
+                l_re = len(re)
+                for i in range(l_re):
+                    gammas = np.power(self.gamma, np.arange(l_re-i))
+                    all_qs = gammas * re[i:]
+                    q_n.extend([np.sum(all_qs)])
+                t_n += [(np.power(self.gamma, np.arange(l_re - t)) * re[t:]).sum() for t in range(l_re)]
         else:
             for re in re_n:
                 this_path_len = len(re)
@@ -429,8 +437,8 @@ class Agent(object):
                 all_qs = gammas * re
                 sum_qs = np.sum(all_qs)
                 q_n.extend([sum_qs] * this_path_len)
-
         return q_n
+
         # q_n = []
         # for r in re_n:
         #     T = len(r)
@@ -470,10 +478,10 @@ class Agent(object):
             # (mean and std) of the current batch of Q-values. (Goes with Hint
             # #bl2 in Agent.update_parameters.
             r_b_n = self.sess.run(fetches=self.baseline_prediction, feed_dict={self.sy_ob_no: ob_no})
-            # m_b_n, s_b_n = np.mean(r_b_n), np.std(r_b_n) + 1e-10
-            # n_b_n = (r_b_n - m_b_n) / s_b_n
-            # b_n = n_b_n * np.std(q_n) + np.mean(q_n)
-            b_n = r_b_n * np.std(q_n) + np.mean(q_n)
+            m_b_n, s_b_n = np.mean(r_b_n), np.std(r_b_n) + 1e-10
+            n_b_n = (r_b_n - m_b_n) / s_b_n
+            b_n = n_b_n * np.std(q_n) + np.mean(q_n)
+            # b_n = r_b_n * np.std(q_n) + np.mean(q_n)
             adv_n = q_n - b_n
         else:
             adv_n = q_n.copy()
