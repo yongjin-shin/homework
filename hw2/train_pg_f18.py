@@ -307,7 +307,8 @@ class Agent(object):
                                                                 n_layers=self.n_layers, size=self.size))
 
                 self.sy_target_n = tf.placeholder(shape=[None], name='target', dtype=tf.float32)
-                self.baseline_loss = 0.5 * tf.reduce_sum((self.baseline_prediction - self.sy_target_n)**2)
+                #self.baseline_loss = 0.5 * tf.reduce_sum((self.baseline_prediction - self.sy_target_n)**2)
+                self.baseline_loss = tf.reduce_sum((self.baseline_prediction - self.sy_target_n)**2)
                 self.baseline_update_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.baseline_loss)
 
     def sample_trajectories(self, itr, env):
