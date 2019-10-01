@@ -13,36 +13,6 @@ def huber_loss(x, delta=1.0):
         delta * (tf.abs(x) - 0.5 * delta)
     )
 
-def sample_n_unique(sampling_f, n):
-    """Helper function. Given a function `sampling_f` that returns
-    comparable objects, sample n such unique objects.
-    """
-    res = []
-    while len(res) < n:
-        candidate = sampling_f()
-        if candidate not in res:
-            res.append(candidate)
-    return res
-
-class Schedule(object):
-    def value(self, t):
-        """Value of the schedule at time t"""
-        raise NotImplementedError()
-
-class ConstantSchedule(object):
-    def __init__(self, value):
-        """Value remains constant over time.
-        Parameters
-        ----------
-        value: float
-            Constant value of the schedule
-        """
-        self._v = value
-
-    def value(self, t):
-        """See Schedule.value"""
-        return self._v
-
 def linear_interpolation(l, r, alpha):
     return l + alpha * (r - l)
 
@@ -105,6 +75,36 @@ class LinearSchedule(object):
         """See Schedule.value"""
         fraction  = min(float(t) / self.schedule_timesteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
+
+def sample_n_unique(sampling_f, n):
+    """Helper function. Given a function `sampling_f` that returns
+    comparable objects, sample n such unique objects.
+    """
+    res = []
+    while len(res) < n:
+        candidate = sampling_f()
+        if candidate not in res:
+            res.append(candidate)
+    return res
+
+class Schedule(object):
+    def value(self, t):
+        """Value of the schedule at time t"""
+        raise NotImplementedError()
+
+class ConstantSchedule(object):
+    def __init__(self, value):
+        """Value remains constant over time.
+        Parameters
+        ----------
+        value: float
+            Constant value of the schedule
+        """
+        self._v = value
+
+    def value(self, t):
+        """See Schedule.value"""
+        return self._v
 
 def compute_exponential_averages(variables, decay):
     """Given a list of tensorflow scalar variables

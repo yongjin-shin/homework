@@ -69,8 +69,8 @@ def lander_learn(env,
     dqn.learn(
         env=env,
         session=session,
-        exploration=lander_exploration_schedule(num_timesteps),
-        stopping_criterion=lander_stopping_criterion(num_timesteps),
+        exploration=exploration_schedule,
+        stopping_criterion=stopping_criterion,
         double_q=True,
         **lander_kwargs()
     )

@@ -6,7 +6,6 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
-
 import dqn
 from dqn_utils import *
 from atari_wrappers import *
@@ -28,9 +27,9 @@ def atari_model(img_in, num_actions, scope, reuse=False):
 
         return out
 
-def atari_learn(env,
-                session,
-                num_timesteps):
+
+def atari_learn(env, session, num_timesteps):
+
     # This is just a rough estimate
     num_iterations = float(num_timesteps) / 4.0
 
@@ -103,7 +102,7 @@ def get_session():
     print("AVAILABLE GPUS: ", get_available_gpus())
     return session
 
-def get_env(task, seed):
+def get_env(seed):
     env = gym.make('PongNoFrameskip-v4')
 
     set_global_seeds(seed)
@@ -116,13 +115,13 @@ def get_env(task, seed):
     return env
 
 def main():
-    # Get Atari games.
-    task = gym.make('PongNoFrameskip-v4')
+    # # Get Atari games.
+    # task = gym.make('PongNoFrameskip-v4')
 
     # Run training
     seed = random.randint(0, 9999)
     print('random seed = %d' % seed)
-    env = get_env(task, seed)
+    env = get_env(seed)
     session = get_session()
     atari_learn(env, session, num_timesteps=2e8)
 
