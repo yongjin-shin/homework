@@ -5,6 +5,7 @@ import tensorflow as tf
 import numpy as np
 import random
 
+
 def huber_loss(x, delta=1.0):
     # https://en.wikipedia.org/wiki/Huber_loss
     return tf.where(
@@ -13,8 +14,10 @@ def huber_loss(x, delta=1.0):
         delta * (tf.abs(x) - 0.5 * delta)
     )
 
+
 def linear_interpolation(l, r, alpha):
     return l + alpha * (r - l)
+
 
 class PiecewiseSchedule(object):
     def __init__(self, endpoints, interpolation=linear_interpolation, outside_value=None):
@@ -52,6 +55,7 @@ class PiecewiseSchedule(object):
         assert self._outside_value is not None
         return self._outside_value
 
+
 class LinearSchedule(object):
     def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
         """Linear interpolation between initial_p and final_p over
@@ -76,21 +80,12 @@ class LinearSchedule(object):
         fraction  = min(float(t) / self.schedule_timesteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
 
-def sample_n_unique(sampling_f, n):
-    """Helper function. Given a function `sampling_f` that returns
-    comparable objects, sample n such unique objects.
-    """
-    res = []
-    while len(res) < n:
-        candidate = sampling_f()
-        if candidate not in res:
-            res.append(candidate)
-    return res
 
 class Schedule(object):
     def value(self, t):
         """Value of the schedule at time t"""
         raise NotImplementedError()
+
 
 class ConstantSchedule(object):
     def __init__(self, value):
@@ -105,6 +100,7 @@ class ConstantSchedule(object):
     def value(self, t):
         """See Schedule.value"""
         return self._v
+
 
 def compute_exponential_averages(variables, decay):
     """Given a list of tensorflow scalar variables
@@ -127,6 +123,7 @@ def compute_exponential_averages(variables, decay):
     apply_op = averager.apply(variables)
     return [averager.average(v) for v in variables], apply_op
 
+
 def minimize_and_clip(optimizer, objective, var_list, clip_val=10):
     """Minimized `objective` using `optimizer` w.r.t. variables in
     `var_list` while ensure the norm of the gradients for each
@@ -137,6 +134,7 @@ def minimize_and_clip(optimizer, objective, var_list, clip_val=10):
         if grad is not None:
             gradients[i] = (tf.clip_by_norm(grad, clip_val), var)
     return optimizer.apply_gradients(gradients)
+
 
 def initialize_interdependent_variables(session, vars_list, feed_dict):
     """Initialize a list of variables one at a time, which is useful if
@@ -161,6 +159,7 @@ def initialize_interdependent_variables(session, vars_list, feed_dict):
         else:
             vars_left = new_vars_left
 
+
 def get_wrapper_by_name(env, classname):
     currentenv = env
     while True:
@@ -170,6 +169,19 @@ def get_wrapper_by_name(env, classname):
             currentenv = currentenv.env
         else:
             raise ValueError("Couldn't find wrapper named %s"%classname)
+
+
+def sample_n_unique(sampling_f, n):
+    """Helper function. Given a function `sampling_f` that returns
+    comparable objects, sample n such unique objects.
+    """
+    res = []
+    while len(res) < n:
+        candidate = sampling_f()
+        if candidate not in res:
+            res.append(candidate)
+    return res
+
 
 class ReplayBuffer(object):
     def __init__(self, size, frame_history_len, lander=False):
@@ -216,6 +228,24 @@ class ReplayBuffer(object):
         return batch_size + 1 <= self.num_in_buffer
 
     def _encode_sample(self, idxes):
+        """
+        Returns
+        -------
+        obs_batch: np.array
+            Array of shape
+            (batch_size, img_h, img_w, img_c * frame_history_len)
+            and dtype np.uint8
+        act_batch: np.array
+            Array of shape (batch_size,) and dtype np.int32
+        rew_batch: np.array
+            Array of shape (batch_size,) and dtype np.float32
+        next_obs_batch: np.array
+            Array of shape
+            (batch_size, img_h, img_w, img_c * frame_history_len)
+            and dtype np.uint8
+        done_mask: np.array
+            Array of shape (batch_size,) and dtype np.float32
+        """
         obs_batch      = np.concatenate([self._encode_observation(idx)[None] for idx in idxes], 0)
         act_batch      = self.action[idxes]
         rew_batch      = self.reward[idxes]
@@ -223,7 +253,6 @@ class ReplayBuffer(object):
         done_mask      = np.array([1.0 if self.done[idx] else 0.0 for idx in idxes], dtype=np.float32)
 
         return obs_batch, act_batch, rew_batch, next_obs_batch, done_mask
-
 
     def sample(self, batch_size):
         """Sample `batch_size` different transitions.
@@ -241,22 +270,6 @@ class ReplayBuffer(object):
         batch_size: int
             How many transitions to sample.
 
-        Returns
-        -------
-        obs_batch: np.array
-            Array of shape
-            (batch_size, img_h, img_w, img_c * frame_history_len)
-            and dtype np.uint8
-        act_batch: np.array
-            Array of shape (batch_size,) and dtype np.int32
-        rew_batch: np.array
-            Array of shape (batch_size,) and dtype np.float32
-        next_obs_batch: np.array
-            Array of shape
-            (batch_size, img_h, img_w, img_c * frame_history_len)
-            and dtype np.uint8
-        done_mask: np.array
-            Array of shape (batch_size,) and dtype np.float32
         """
         assert self.can_sample(batch_size)
         idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
@@ -276,7 +289,7 @@ class ReplayBuffer(object):
         return self._encode_observation((self.next_idx - 1) % self.size)
 
     def _encode_observation(self, idx):
-        end_idx   = idx + 1 # make noninclusive
+        end_idx   = idx + 1  # make noninclusive
         start_idx = end_idx - self.frame_history_len
         # this checks if we are using low-dimensional observations, such as RAM
         # state, in which case we just directly return the latest RAM.

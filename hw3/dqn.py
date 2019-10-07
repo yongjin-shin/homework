@@ -161,19 +161,25 @@ class QLearner(object):
 
         ######
 
-        # TD(1)
-        q_tp1_values = q_func(obs_tp1_float, self.num_actions, scope='q_func', reuse=False)
-        q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+        """
+        선택해야할 것이 있다면, mask를 활용하자!! (아우 이거 생각한 사람 똑똑하다 증말...)
+        """
 
-        # Target
-        q_t_values = q_func(obs_t_float, self.num_actions, scope='target_func', reuse=False)
-        target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_func')
+        # Target function
+        target_value = q_func(obs_tp1_float, self.num_actions, scope='target_func', reuse=False)
+        self.y = self.rew_t_ph + self.gamma * tf.reduce_max(target_value, axis=1)
 
-        self.y = self.rew_t_ph + self.gamma * tf.reduce_max(q_tp1_values, axis=1)
-        self.target_y = tf.identity(q_t_values)
-        self.td_error = self.target_y - self.y
+        # Q function
+        self.q_value = q_func(obs_t_float, self.num_actions, scope='q_func', reuse=False)
+        mask = tf.one_hot(indices=self.act_t_ph, depth=self.num_actions)
+        masked_q_value = tf.reduce_sum(self.q_value * mask, axis=1)
+
+        # TD error
+        self.td_error = self.y - masked_q_value
         self.total_error = tf.reduce_mean(huber_loss(self.td_error, delta=1.0))
 
+        target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_func')
+        q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
         with tf.variable_scope('Optimizer', reuse=False):
             # construct optimization op (with gradient clipping)
             self.learning_rate = tf.placeholder(tf.float32, (), name="learning_rate")
@@ -241,8 +247,43 @@ class QLearner(object):
         # might as well be random, since you haven't trained your net...)
 
         #####
+        """
+            Comment가 정확하게 뭘 의미하는지 모르겠음.
+            쓸데없는 얘기를 적어놓은걸까?? 아니면 내가 이해를 못하는걸까??
+            Todo
+                1. minibatch를 만족 못 시킬 경우는 다시 돌아오나??
+                2. 0인 경우는 network가 어떻게 처리하려나??
+        """
+
+        self.replay_buffer_idx = self.replay_buffer.store_frame(self.last_obs)
+
+        if not self.model_initialized or np.random.randn() < self.exploration.value():
+            act = self.env.action_space.sample()
+        else:
+            prev_obs_frames = self.replay_buffer.encode_recent_observation()
+            q_val = self.session.run(fetches=self.q_value,
+                                     feed_dict={self.obs_t_ph: prev_obs_frames[None]})
+            act = tf.reduce_max(q_val, axis=1)
+
+        next_obs, reward, done, info = self.env.step(act)
+        self.replay_buffer.store_effect(self.replay_buffer_idx, act, reward, done)
+
+        if done:
+            self.last_obs = self.env.reset()
+        else:
+            self.last_obs = next_obs
+
 
         # YOUR CODE HERE
+        # if not self.replay_buffer.can_sample(self.batch_size):
+        #     while not self.replay_buffer.can_sample(self.batch_size):
+        #         act = self.env.action_space.sample()
+        #         obs, reward, done, info = self.env.step(act)
+        #         self.replay_buffer_idx = self.replay_buffer.store_frame(frame=obs)
+        #         prev_obs_frames = self.replay_buffer.encode_recent_observation()
+        #         self.replay_buffer.store_effect(self.replay_buffer_idx, act, reward, done)
+        # else:
+
         return 0
 
     def update_model(self):

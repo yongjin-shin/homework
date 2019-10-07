@@ -6,7 +6,6 @@ import random
 import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.layers as layers
-
 import dqn
 from dqn_utils import *
 from atari_wrappers import *
@@ -118,4 +117,5 @@ def main():
     atari_learn(env, session, num_timesteps=int(4e7))
 
 if __name__ == "__main__":
+    print("tt")
     main()
